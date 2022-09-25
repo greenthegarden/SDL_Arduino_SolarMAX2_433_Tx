@@ -7,11 +7,10 @@
 //
 
 /**************************************************************************/
-/*! 
-    Initial code from INA219 code (Basically just a core structure left)
-    @author   K. Townsend (Adafruit Industries)
+/*!
+  Initial code from INA219 code (Basically just a core structure left)
+  @author   K. Townsend (Adafruit Industries)
   @license  BSD (see BSDlicense.txt)
-  
   */
 /**************************************************************************/
 
@@ -86,11 +85,9 @@ class SDL_Arduino_INA3221{
   uint8_t INA3221_i2caddr;
   float INA3221_shuntresistor;
 
-  
   void wireWriteRegister(uint8_t reg, uint16_t value);
 
   void INA3221SetConfig(void);
   int16_t getBusVoltage_raw(int channel);
   int16_t getShuntVoltage_raw(int channel);
-
 };

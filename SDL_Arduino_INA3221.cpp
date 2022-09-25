@@ -6,11 +6,9 @@
 //
 //
 
-
-
 /*
-    Initial code from INA219 code (Basically just a core structure left)
-    @author   K.Townsend (Adafruit Industries)
+  Initial code from INA219 code (Basically just a core structure left)
+  @author   K.Townsend (Adafruit Industries)
   @license  BSD (see BSDlicense.txt)
 */
 
@@ -51,7 +49,6 @@ void SDL_Arduino_INA3221::wireWriteRegister (uint8_t reg, uint16_t value)
 /**************************************************************************/
 void SDL_Arduino_INA3221::wireReadRegister(uint8_t reg, uint16_t *value)
 {
-
   Wire.beginTransmission(INA3221_i2caddr);
 #if ARDUINO >= 100
   Wire.write(reg);                       // Register
@@ -72,11 +69,8 @@ void SDL_Arduino_INA3221::wireReadRegister(uint8_t reg, uint16_t *value)
 #endif
 }
 
-//
 void SDL_Arduino_INA3221::INA3221SetConfig(void)
 {
-
-
   // Set Config register to take into account the settings above
   uint16_t config = INA3221_CONFIG_ENABLE_CHAN1 |
                     INA3221_CONFIG_ENABLE_CHAN2 |
@@ -95,11 +89,10 @@ void SDL_Arduino_INA3221::INA3221SetConfig(void)
     @brief  Instantiates a new SDL_Arduino_INA3221 class
 */
 /**************************************************************************/
-SDL_Arduino_INA3221::SDL_Arduino_INA3221(uint8_t addr, float shuntresistor) {
-
+SDL_Arduino_INA3221::SDL_Arduino_INA3221(uint8_t addr, float shuntresistor)
+{
   INA3221_i2caddr = addr;
   INA3221_shuntresistor = shuntresistor;
-
 }
 
 /**************************************************************************/
@@ -107,14 +100,15 @@ SDL_Arduino_INA3221::SDL_Arduino_INA3221(uint8_t addr, float shuntresistor) {
     @brief  Setups the HW (defaults to 32V and 2A for calibration values)
 */
 /**************************************************************************/
-void SDL_Arduino_INA3221::begin() {
+void SDL_Arduino_INA3221::begin()
+{
   Wire.begin();
+
   // Set chip to known config values to start
   INA3221SetConfig();
 
-  Serial.print("shut resistor="); Serial.println(INA3221_shuntresistor);
+  Serial.print("shunt resistor="); Serial.println(INA3221_shuntresistor);
   Serial.print("address="); Serial.println(INA3221_i2caddr, HEX);
-
 }
 
 /**************************************************************************/
@@ -122,14 +116,15 @@ void SDL_Arduino_INA3221::begin() {
     @brief  Gets the raw bus voltage (16-bit signed integer, so +-32767)
 */
 /**************************************************************************/
-int16_t SDL_Arduino_INA3221::getBusVoltage_raw(int channel) {
+int16_t SDL_Arduino_INA3221::getBusVoltage_raw(int channel)
+{
   uint16_t value;
   wireReadRegister(INA3221_REG_BUSVOLTAGE_1 + (channel - 1) * 2, &value);
-  //    Serial.print("BusVoltage_raw=");
-  //    Serial.println(value,HEX);
+  Serial.print("busVoltage_raw=");
+  Serial.println(value, HEX);
 
   // Shift to the right 3 to drop CNVR and OVF and multiply by LSB
-  return (int16_t)(value );
+  return (int16_t)(value);
 }
 
 /**************************************************************************/
@@ -137,27 +132,26 @@ int16_t SDL_Arduino_INA3221::getBusVoltage_raw(int channel) {
     @brief  Gets the raw shunt voltage (16-bit signed integer, so +-32767)
 */
 /**************************************************************************/
-int16_t SDL_Arduino_INA3221::getShuntVoltage_raw(int channel) {
+int16_t SDL_Arduino_INA3221::getShuntVoltage_raw(int channel)
+{
   uint16_t value;
   wireReadRegister(INA3221_REG_SHUNTVOLTAGE_1 + (channel - 1) * 2, &value);
-  // Serial.print("ShuntVoltage_raw=");
-  // Serial.println(value,HEX);
+  Serial.print("shuntVoltage_raw=");
+  Serial.println(value, HEX);
   return (int16_t)value;
 }
-
-
 
 /**************************************************************************/
 /*!
     @brief  Gets the shunt voltage in mV (so +-168.3mV)
 */
 /**************************************************************************/
-float SDL_Arduino_INA3221::getShuntVoltage_mV(int channel) {
-  int16_t value;
-  value = getShuntVoltage_raw(channel);
-  //Serial.print("ShuntVoltage_value*0.005=");
-  //Serial.println(value* 0.005,HEX);
-  return value * 0.005;
+float SDL_Arduino_INA3221::getShuntVoltage_mV(int channel)
+{
+  int16_t value = getShuntVoltage_raw(channel);
+  Serial.print("shuntVoltage_mV=shuntVoltage_raw*0.005=");
+  Serial.println(value*0.005, HEX);
+  return value*0.005;
 }
 
 /**************************************************************************/
@@ -165,9 +159,12 @@ float SDL_Arduino_INA3221::getShuntVoltage_mV(int channel) {
     @brief  Gets the shunt voltage in volts
 */
 /**************************************************************************/
-float SDL_Arduino_INA3221::getBusVoltage_V(int channel) {
+float SDL_Arduino_INA3221::getBusVoltage_V(int channel)
+{
   int16_t value = getBusVoltage_raw(channel);
-  return value * 0.001;
+  Serial.print("busVoltage_V=busVoltage_raw*0.001=");
+  Serial.println(value*0.001);
+  return value*0.001;
 }
 
 /**************************************************************************/
@@ -176,8 +173,10 @@ float SDL_Arduino_INA3221::getBusVoltage_V(int channel) {
             config settings and current LSB
 */
 /**************************************************************************/
-float SDL_Arduino_INA3221::getCurrent_mA(int channel) {
-  float valueDec = getShuntVoltage_mV(channel) / INA3221_shuntresistor;
-
-  return valueDec;
+float SDL_Arduino_INA3221::getCurrent_mA(int channel)
+{
+  float value = getShuntVoltage_mV(channel) / INA3221_shuntresistor;
+  Serial.print("current_mA=shuntVoltage_mv/shuntresistor=");
+  Serial.println(value);
+  return value;
 }

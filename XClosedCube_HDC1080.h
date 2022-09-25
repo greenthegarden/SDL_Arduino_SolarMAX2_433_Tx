@@ -22,8 +22,8 @@ THE SOFTWARE.
 */
 
 #ifndef _XCLOSEDCUBE_HDC1080_h
-
 #define _XCLOSEDCUBE_HDC1080_h
+
 #include <Arduino.h>
 
 typedef enum {
@@ -33,13 +33,13 @@ typedef enum {
 } HDC1080_MeasurementResolution;
 
 typedef enum {
-  HDC1080_TEMPERATURE   = 0x00,
-  HDC1080_HUMIDITY    = 0x01,
-  HDC1080_CONFIGURATION = 0x02,
+  HDC1080_TEMPERATURE     = 0x00,
+  HDC1080_HUMIDITY        = 0x01,
+  HDC1080_CONFIGURATION   = 0x02,
   HDC1080_MANUFACTURER_ID = 0xFE,
-  HDC1080_DEVICE_ID   = 0xFF,
+  HDC1080_DEVICE_ID       = 0xFF,
   HDC1080_SERIAL_ID_FIRST = 0xFB,
-  HDC1080_SERIAL_ID_MID = 0xFC,
+  HDC1080_SERIAL_ID_MID   = 0xFC,
   HDC1080_SERIAL_ID_LAST  = 0xFD,
 } HDC1080_Pointers;
 
@@ -65,7 +65,8 @@ typedef union {
   };
 } HDC1080_Registers;
 
-class XClosedCube_HDC1080 {
+class XClosedCube_HDC1080
+{
 public:
   XClosedCube_HDC1080();
 
@@ -90,8 +91,7 @@ public:
 
 private:
   uint8_t _address;
-  uint16_t readData(uint8_t pointer);
-  
+  uint16_t readData(uint8_t pointer);  
 };
 
 #endif

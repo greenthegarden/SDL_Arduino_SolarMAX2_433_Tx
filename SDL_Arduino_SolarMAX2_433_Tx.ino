@@ -1,13 +1,15 @@
 // SDL_Arduino_SolarMAX2_433_Tx
 // SwitchDoc Labs December 2020
 //
-#define TXDEBUG
-//#undef TXDEBUG
+// #define TXDEBUG
+#undef TXDEBUG
+
 #include <JeeLib.h>
 
 #include "MemoryFree.h"
 
-#define USB5VLOADCONTROL 2
+// Define pin on Grove Mini Pro Plus to control load viaSoar Power Manger
+#define LOAD_CONTROL_PIN 2
 
 // unique ID of this solarmax system - change if you have multiple solarmax systems
 #define SOLARMAXID 1
@@ -29,11 +31,8 @@
 // #define WeatherSenseProtocol 8
 int WeatherSenseProtocol = 10;
 
-// SoalrMAX ID is changed if you have more than one unit reporting in the same area.
-
 // Number of milliseconds between data out
 #define SLEEPCYCLE 14500
-//#define SLEEPCYCLE 14000
 
 #include "Crc16.h"
 
@@ -48,11 +47,12 @@ ISR(WDT_vect) {
 
 #include <avr/sleep.h>
 #include <avr/power.h>
+
 #include "SDL_Arduino_INA3221.h"
 
-#include "XClosedCube_HDC1080.h";
-
 SDL_Arduino_INA3221 INA3221;
+
+#include "XClosedCube_HDC1080.h"
 
 XClosedCube_HDC1080 hdc1080;
 
@@ -63,7 +63,7 @@ XClosedCube_HDC1080 hdc1080;
 
 RH_ASK driver(2000, RXPIN, TXPIN);
 
-unsigned long MessageCount = 0;
+unsigned long MessageCount = 0UL;
 
 #include "avr/pgmspace.h"
 // #include <Time.h>
@@ -82,22 +82,22 @@ typedef enum  {
 } wakestate;
 
 // Device Present State Variables
-bool INA3221_Present;
-bool HDC1080_Present;
+bool INA3221_Present = false;
+bool HDC1080_Present = false;
 
 byte byteBuffer[200]; // contains string to be sent to RX unit
 
 // State Variables
-long TimeStamp;
-float InsideTemperature;
-float InsideHumidity;
-float BatteryVoltage;
-float BatteryCurrent;
-float LoadVoltage;
-float LoadCurrent;
-float SolarPanelVoltage;
-float SolarPanelCurrent;
-unsigned long AuxA;
+long TimeStamp = 0;
+float temperature = 0.0;
+float humidity = 0.0;
+float BatteryVoltage = 0.0;
+float BatteryCurrent = 0.0;
+float LoadVoltage = 0.0;
+float LoadCurrent = 0.0;
+float SolarPanelVoltage = 0.0;
+float SolarPanelCurrent = 0.0;
+unsigned long AuxA = 0UL;
 
 // AuxA has state information
 // coded in the long integer
@@ -111,27 +111,25 @@ unsigned long AuxA;
 
 // Timers
 // the ten minute timer is used so we don't turn on and turn off right away on loss of sunlight on a well discharged battery.
-// If the computer turns the USB power off, you can't turn it on again for 10 minutes.  This hysterisis prevents slamming the usb on and off under heavy loads (which will pull the battery down quickly if there is not much charge)
-unsigned long TenMinuteTimerDuration; // 0 means disabled - used for preventing slamming off and on - once it turns off, it waits 10 minutes to try to turn on again.
-unsigned long TenMinuteTimerStart;
+// If the computer turns the Load power off, you can't turn it on again for 10 minutes.  This hysterisis prevents slamming the Load on and off under heavy loads (which will pull the battery down quickly if there is not much charge)
+unsigned long TenMinuteTimerDuration = 0UL; // 0 means disabled - used for preventing slamming off and on - once it turns off, it waits 10 minutes to try to turn on again.
+unsigned long TenMinuteTimerStart = 0UL;
 
 // FirstTimeTimerDuration
-unsigned long FirstTimeTimerDuration; // 0 means disabled
-unsigned long FirstTimeTimerStart;
+unsigned long FirstTimeTimerDuration = 0UL; // 0 means disabled
+unsigned long FirstTimeTimerStart = 0UL;
 
-int protocolBufferCount;
+int protocolBufferCount = 0;
 
 wakestate wakeState;  // who woke us up?
 
-bool Alarm_State_1;
-bool Alarm_State_2;
+bool Alarm_State_1 = false;
+bool Alarm_State_2 = false;
 
-long nextSleepLength;
+long nextSleepLength = 0L;
 
 int convert4ByteLongVariables(int bufferCount, long myVariable)
 {
-  int i;
-
   union {
     long a;
     unsigned char bytes[4];
@@ -139,7 +137,7 @@ int convert4ByteLongVariables(int bufferCount, long myVariable)
 
   thing.a = myVariable;
 
-  for (i = 0; i < 4; i++)
+  for (int i = 0; i < 4; i++)
   {
     byteBuffer[bufferCount] = thing.bytes[i];
     bufferCount++;
@@ -150,8 +148,6 @@ int convert4ByteLongVariables(int bufferCount, long myVariable)
 
 int convert4ByteFloatVariables(int bufferCount, float myVariable)
 {
-  int i;
-
   union {
     float a;
     unsigned char bytes[4];
@@ -159,7 +155,7 @@ int convert4ByteFloatVariables(int bufferCount, float myVariable)
 
   thing.a = myVariable;
 
-  for (i = 0; i < 4; i++)
+  for (int i = 0; i < 4; i++)
   {
     byteBuffer[bufferCount] = thing.bytes[i];
     bufferCount++;
@@ -167,7 +163,6 @@ int convert4ByteFloatVariables(int bufferCount, float myVariable)
 
   return bufferCount;
 }
-
 
 int convert2ByteVariables(int bufferCount, int myVariable)
 {
@@ -243,8 +238,8 @@ int buildProtocolMessage()
   bufferCount++;
 
   bufferCount = convert4ByteFloatVariables(bufferCount, LoadVoltage);
-  bufferCount = convert4ByteFloatVariables(bufferCount, InsideTemperature),
-  bufferCount = convert4ByteFloatVariables(bufferCount, InsideHumidity);
+  bufferCount = convert4ByteFloatVariables(bufferCount, temperature),
+  bufferCount = convert4ByteFloatVariables(bufferCount, humidity);
 
   bufferCount = convert4ByteFloatVariables(bufferCount, BatteryVoltage);
   bufferCount = convert4ByteFloatVariables(bufferCount, BatteryCurrent);
@@ -266,10 +261,7 @@ int buildProtocolMessage()
 
 void printStringBuffer()
 {
-  int bufferLength;
-
-  bufferLength = protocolBufferCount;
-  // int i;
+  int bufferLength = protocolBufferCount;
 
   for (int i = 0; i < bufferLength; i++)
   {
@@ -300,28 +292,28 @@ void ResetWatchdog()
 #endif
 }
 
-bool statusUSBPower = false;
+bool statusLoadPower = false;
 
-void setupUSBPower()
+void setupLoadPower()
 {
-  digitalWrite(USB5VLOADCONTROL, HIGH);
-  pinMode(USB5VLOADCONTROL, OUTPUT);
-  USBPower5VLoadOn();
-  statusUSBPower = true;
+  digitalWrite(LOAD_CONTROL_PIN, HIGH);
+  pinMode(LOAD_CONTROL_PIN, OUTPUT);
+  LoadPowerSetOn();
+  statusLoadPower = true;
 }
 
-void setupUSBPowerOff()
+void setupLoadPowerOff()
 {
-  digitalWrite(USB5VLOADCONTROL, LOW);
-  pinMode(USB5VLOADCONTROL, OUTPUT);
-  USBPower5VLoadOff();
-  statusUSBPower = false;
+  digitalWrite(LOAD_CONTROL_PIN, LOW);
+  pinMode(LOAD_CONTROL_PIN, OUTPUT);
+  LoadPowerSetOff();
+  statusLoadPower = false;
 }
 
-void USBPowerOff()
+void LoadPowerOff()
 {
-  USBPower5VLoadOff();
-  statusUSBPower = false;
+  LoadPowerSetOff();
+  statusLoadPower = false;
 
   TenMinuteTimerDuration = 10L * 60L * 1000L;
   TenMinuteTimerStart = millis();
@@ -336,15 +328,16 @@ void USBPowerOff()
   //AuxA = AuxA & 0xFFFFFFFE; // Coded as Bit B (bit 0)
 
 #if defined(TXDEBUG)
-  Serial.print(F("Ten Minute Time Start Set at:"));
+  Serial.print(F("Ten Minute Time Start Set at: "));
   Serial.println(TenMinuteTimerStart);
+  Serial.print(F(" millisecs"));
 #endif
 }
 
-void USBPowerOn()
+void LoadPowerOn()
 {
 #if defined(TXDEBUG)
-  Serial.println(F("Checking Ten Minute Timer inside USBPowerOn"));
+  Serial.println(F("Checking Ten Minute Timer inside LoadPowerOn"));
   Serial.print(F("millis() = "));
   Serial.println(millis());
   Serial.print(F("TenMinuteTimerStart = "));
@@ -353,8 +346,9 @@ void USBPowerOn()
   Serial.println(TenMinuteTimerDuration);
 #endif
 
-  if ((millis() - FirstTimeTimerStart) > FirstTimeTimerDuration)  // reset first time start
+  if ((millis() - FirstTimeTimerStart) > FirstTimeTimerDuration) {  // reset first time start
     AuxA = AuxA & 0xFFFFFFFE; // Coded as Bit B (bit 0)
+  }
 
   if (((millis() - TenMinuteTimerStart) > TenMinuteTimerDuration) && ((millis() - FirstTimeTimerStart) > FirstTimeTimerDuration))  // avoids rollover problem and delays first turn on
   {
@@ -364,14 +358,14 @@ void USBPowerOn()
       FirstTimeTimerStart = millis();
       AuxA = AuxA | 0x01; // Coded as Bit B (bit 0)
       #if defined(TXDEBUG)
-      Serial.println(F("USB Power ON REFUSED - Set FirstTime Timer"));
+      Serial.println(F("Load Power ON REFUSED - Set FirstTime Timer"));
       #endif
       }
       else
     */
     {
-      USBPower5VLoadOn();
-      statusUSBPower = true;
+      LoadPowerSetOn();
+      statusLoadPower = true;
       TenMinuteTimerDuration = 0;  // reset Ten Minute timer
       AuxA = AuxA & 0xFFFFFFFD; // Coded as Bit A (bit 1)
       // Note   First time timer is left expired, reset in Power Off command
@@ -380,32 +374,74 @@ void USBPowerOn()
   else
   {
 #if defined(TXDEBUG)
-    Serial.println(F("USB Power ON REFUSED due to Ten Minute Timer or First Time Timer"));
+    Serial.println(F("Load Power ON REFUSED due to Ten Minute Timer or First Time Timer"));
 #endif
   }
 }
 
-void USBPower5VLoadOff()
+void LoadPowerSetOff()
 {
-  digitalWrite(USB5VLOADCONTROL, LOW);
+  digitalWrite(LOAD_CONTROL_PIN, LOW);
 
 #if defined(TXDEBUG)
-  Serial.println(F("USB Power Off"));
+  Serial.println(F("Load Power OFF"));
 #endif
 
   AuxA = AuxA & 0xFFFFFFFB;   // Coded as bit Z (bit 2)
 }
 
-void USBPower5VLoadOn()
+void LoadPowerSetOn()
 {
-  digitalWrite(USB5VLOADCONTROL, HIGH);
+  digitalWrite(LOAD_CONTROL_PIN, HIGH);
 
 #if defined(TXDEBUG)
-  Serial.println(F("USB Power ON"));
+  Serial.println(F("Load Power ON"));
 #endif
+
   AuxA = AuxA | 0x04;    // Coded as bit Z (bit 2)
 }
 
+void read_ina3221()
+{       
+    Serial.print(F("INA3221 Sensor Reading:"));
+    Serial.println("");
+
+    BatteryVoltage = INA3221.getBusVoltage_V(BATTERY_CHANNEL);
+    BatteryCurrent = INA3221.getCurrent_mA(BATTERY_CHANNEL);
+
+    Serial.print(F("  Battery Voltage:      ")); Serial.print(BatteryVoltage); Serial.println(F(" V"));
+    Serial.print(F("  Battery Current:      ")); Serial.print(BatteryCurrent); Serial.println(F(" mA"));
+
+    SolarPanelVoltage = INA3221.getBusVoltage_V(SOLAR_CELL_CHANNEL);
+    SolarPanelCurrent = INA3221.getCurrent_mA(SOLAR_CELL_CHANNEL) * -1.0;
+
+    Serial.print(F("  Solar Panel Voltage:  ")); Serial.print(SolarPanelVoltage); Serial.println(F(" V"));
+    Serial.print(F("  Solar Panel Current:  ")); Serial.print(SolarPanelCurrent); Serial.println(F(" mA"));
+
+    LoadVoltage = INA3221.getBusVoltage_V(LOAD_CHANNEL);
+    LoadCurrent = INA3221.getCurrent_mA(LOAD_CHANNEL) * 0.75;
+
+    Serial.print(F("  Load Voltage:         ")); Serial.print(LoadVoltage); Serial.println(" V");
+    Serial.print(F("  Load Current:         ")); Serial.print(LoadCurrent); Serial.println(" mA");
+    
+    Serial.println(""); 
+}
+
+void read_hdc1080()
+{
+    Serial.print(F("HDC1080 Sensor Reading:"));
+    Serial.println("");
+  
+    temperature = hdc1080.readTemperature();
+
+    Serial.print(F("  Temperature (C): ")); Serial.println(temperature);
+
+    humidity = hdc1080.readHumidity();
+
+    Serial.print(F("  Humidity (%RH):  ")); Serial.println(humidity);
+
+    Serial.println("");  
+}
 
 void setup()
 {
@@ -413,8 +449,8 @@ void setup()
 
   AuxA = 0x00;
 
-  // turn on USB Power for power check.
-  setupUSBPowerOff();
+  // turn on Load Power for power check.
+  setupLoadPowerOff();
 
   Serial.println(F(">>>>>>>>>><<<<<<<<<"));
   Serial.println(F("SolarMAX2 433MHz Tx"));
@@ -431,6 +467,8 @@ void setup()
 
   Serial.print(F("Software Version:"));
   Serial.println(SOFTWAREVERSION);
+
+  Serial.println("");
 
   pinMode(LED, OUTPUT);
 
@@ -452,17 +490,14 @@ void setup()
   Alarm_State_2 = false;
   nextSleepLength = SLEEPCYCLE;
   TimeStamp = 0;
-  InsideTemperature = 0.0;
-  InsideHumidity = 0.0;
+  temperature = 0.0;
+  humidity = 0.0;
   BatteryVoltage = 0.0;
   BatteryCurrent = 0.0;
   LoadCurrent = 0.0;
   SolarPanelVoltage = 0.0;
   SolarPanelCurrent = 0.0;
 
-  // set delay to ensure system is in steady state
-  delay(3000);
-  
   pinMode(WATCHDOG, OUTPUT);
   digitalWrite(WATCHDOG, HIGH);
 
@@ -475,53 +510,37 @@ void setup()
   // test for INA3221_Present
   INA3221_Present = false;
 
+  Serial.println(F(">>>>>>>>>><<<<<<<<<"));
+  Serial.println(F("  Initialisation   "));
+  Serial.println(F(">>>>>>>>>><<<<<<<<<"));
+  Serial.println("");
+  
   int MIDNumber;
+  INA3221.begin();
   INA3221.wireReadRegister(0xFE, &MIDNumber);
   if (MIDNumber != 0x5449)
   {
     INA3221_Present = false;
     Serial.println(F("INA3221 Not Present"));
-    Serial.println("");
   }
   else
   {
     INA3221_Present = true;
-    Serial.println(F("INA3221 Found"));
-    Serial.println("");
-        
-    BatteryVoltage = INA3221.getBusVoltage_V(BATTERY_CHANNEL);
-    BatteryCurrent = INA3221.getCurrent_mA(BATTERY_CHANNEL);
-
-    Serial.print(F("Battery Voltage:  ")); Serial.print(BatteryVoltage); Serial.println(F(" V"));
-    Serial.print(F("Battery Current:  ")); Serial.print(BatteryCurrent); Serial.println(F(" mA"));
-    Serial.println("");
-
-    SolarPanelVoltage = INA3221.getBusVoltage_V(SOLAR_CELL_CHANNEL);
-    SolarPanelCurrent = -INA3221.getCurrent_mA(SOLAR_CELL_CHANNEL);
-
-    Serial.print(F("Solar Panel Voltage:   ")); Serial.print(SolarPanelVoltage); Serial.println(F(" V"));
-    Serial.print(F("Solar Panel Current:   ")); Serial.print(SolarPanelCurrent); Serial.println(F(" mA"));
-    Serial.println("");
-
-    LoadVoltage = INA3221.getBusVoltage_V(LOAD_CHANNEL);
-    LoadCurrent = INA3221.getCurrent_mA(LOAD_CHANNEL) * 0.75;
-
-    Serial.print(F("Load Voltage:  ")); Serial.print(LoadVoltage); Serial.println(" V");
-    Serial.print(F("Load Current:  ")); Serial.print(LoadCurrent); Serial.println(" mA");
-    Serial.println("");
-
+    Serial.println(F("INA3221 Present"));
+   
+    read_ina3221();
+    
     // Now set WeatherSenseProtocol based on measured voltage
-    if (BatteryVoltage < 5.0)
-    {
-      WeatherSenseProtocol = 8;   // SolarMAX2 LiPo
-    }
-    else
-    {
-      WeatherSenseProtocol = 10;   // SolarMAX2 Lead Acid (12V Battery)
-    }
+    // if (BatteryVoltage < 5.0)
+    // {
+    //   WeatherSenseProtocol = 8;   // SolarMAX2 LiPo
+    // }
+    // else
+    // {
+    //   WeatherSenseProtocol = 10;   // SolarMAX2 Lead Acid (12V Battery)
+    // }
 
-    Serial.println("");
-    Serial.print(F("WeatherSenseProtocol:"));
+    Serial.print(F("WeatherSenseProtocol: "));
     Serial.println(WeatherSenseProtocol);
     Serial.println("");
   }
@@ -532,31 +551,31 @@ void setup()
   //
   //
 #if defined(TXDEBUG)
-  Serial.print(F("Battery Voltage:  ")); Serial.print(BatteryVoltage); Serial.println(F(" V"));
+  Serial.print(F("Battery Voltage: ")); Serial.print(BatteryVoltage); Serial.println(F(" V"));  
 #endif
 
 #if defined(TXDEBUG)
-  Serial.println(F("Checking for setup USBPower On"));
+  Serial.println(F("Checking for setup Load Power ON:"));
 #endif
   if (WeatherSenseProtocol == 10)
   {
     if (BatteryVoltage > 12.0)// Test voltage
     {
-      USBPowerOn();
+      LoadPowerOn();
     }
     else
     {
       // set the firstTime Timer On for 10 minute delay
-      FirstTimeTimerDuration = 10L * 60L * 1000L;
+      FirstTimeTimerDuration = 10UL * 60UL * 1000UL;
       FirstTimeTimerStart = millis();
       AuxA = AuxA | 0x01; // Coded as Bit B (bit 0)
 #if defined(TXDEBUG)
-      Serial.println(F("USB Power ON REFUSED - Set FirstTime Timer"));
+      Serial.println(F("  Load Power ON REFUSED - Set FirstTime Timer"));
 #endif
 
 #if defined(TXDEBUG)
-      Serial.println(F("USB Power NOT turned on due to Battery Voltage < 12.0V"));
-      USBPowerOff();
+      Serial.println(F("  Load Power NOT turned on due to Battery Voltage < 12.0V"));
+      LoadPowerOff();
 #endif
     }
   }
@@ -565,49 +584,39 @@ void setup()
   {
     if (BatteryVoltage > 3.9)
     {
-      USBPowerOn();
+      LoadPowerOn();
     }
     else
     {
       // set the firstTime Timer On for 10 minute delay
-      FirstTimeTimerDuration = 10L * 60L * 1000L;
+      FirstTimeTimerDuration = 10UL * 60UL * 1000UL;
       FirstTimeTimerStart = millis();
       AuxA = AuxA | 0x01; // Coded as Bit B (bit 0)
 #if defined(TXDEBUG)
-      Serial.println(F("USB Power ON REFUSED - Set FirstTime Timer"));
+      Serial.println(F("  Load Power ON REFUSED - Set FirstTime Timer"));
 #endif
 
 #if defined(TXDEBUG)
-      Serial.println(F("USB Power NOT turned on due to Battery Voltage < 3.9V"));
+      Serial.println(F("  Load Power NOT turned on due to Battery Voltage < 3.9V"));
 #endif
     }
   }
 
 #if defined(TXDEBUG)
-  Serial.print(F("USBPower Status:"));
-  Serial.println(statusUSBPower);
+  Serial.print(F("LoadPower Status: "));
+  Serial.println(statusLoadPower);
 #endif
 
   // Check for HDC1080
   HDC1080_Present = false;
   hdc1080.begin(0x40);
-
-  Serial.print("Device ID ID=0x");
-  int devID;
-  devID = hdc1080.readDeviceId();
-  Serial.println(devID, HEX); // 0x5449 ID of Texas Instruments
+  int devID = hdc1080.readDeviceId();
 
   if (devID == 0x1050)
   {
     Serial.println("HDC1080 Present");
     HDC1080_Present = true;
-    Serial.print("T=");
-    InsideTemperature = hdc1080.readTemperature();
-    Serial.print(InsideTemperature);
-    Serial.print("C, RH=");
-    InsideHumidity = hdc1080.readHumidity();
-    Serial.print(InsideHumidity);
-    Serial.println("%");
+    read_hdc1080();
   }
   else
   {
@@ -623,7 +632,7 @@ void loop()
 {
   // Only send if source is SLEEP_INTERRUPT
 #if defined(TXDEBUG)
-  Serial.print(F("wakeState="));
+  Serial.print(F("wakeState = "));
   Serial.println(wakeState);
 #endif
 
@@ -633,16 +642,18 @@ void loop()
     Alarm_State_1 = false;
     Alarm_State_2 = false;
 
-    Serial.print(F("MessageCount="));
+    Serial.println(F(">>>>>>>>>><<<<<<<<<"));
+    Serial.println(F("    Monitoring     "));
+    Serial.println(F(">>>>>>>>>><<<<<<<<<"));
+    Serial.println("");
+    
+    Serial.print(F("MessageCount = "));
     Serial.println(MessageCount);
+    Serial.println("");
 
     if (HDC1080_Present)
     {
-      InsideTemperature = hdc1080.readTemperature();
-      InsideHumidity = hdc1080.readHumidity();
-
-      Serial.print(F("Inside Temperature (C): ")); Serial.println(InsideTemperature);
-      Serial.print(F("Inside Humidity (%RH): ")); Serial.println(InsideHumidity);
+      read_hdc1080();
     }
 
     TimeStamp = millis();
@@ -650,71 +661,49 @@ void loop()
     // if INA3221 present, read charge data
     if (INA3221_Present)
     {
-      BatteryVoltage = INA3221.getBusVoltage_V(BATTERY_CHANNEL);
-      BatteryCurrent = INA3221.getCurrent_mA(BATTERY_CHANNEL);
-
-      SolarPanelVoltage = INA3221.getBusVoltage_V(SOLAR_CELL_CHANNEL);
-      SolarPanelCurrent = INA3221.getCurrent_mA(SOLAR_CELL_CHANNEL);
-
-      Serial.println("");
-      Serial.print(F("Battery Voltage:  ")); Serial.print(BatteryVoltage); Serial.println(F(" V"));
-      Serial.print(F("Battery Current:       ")); Serial.print(BatteryCurrent); Serial.println(F(" mA"));
-      Serial.println("");
-
-      Serial.print(F("Solar Panel Voltage:   ")); Serial.print(SolarPanelVoltage); Serial.println(F(" V"));
-      Serial.print(F("Solar Panel Current:   ")); Serial.print(SolarPanelCurrent); Serial.println(F(" mA"));
-      Serial.println("");
-
-      // read from INA3211 High Current
-      LoadVoltage = INA3221.getBusVoltage_V(LOAD_CHANNEL);
-      LoadCurrent = INA3221.getCurrent_mA(LOAD_CHANNEL) * 0.75;
-
-      Serial.print(F("Load Voltage:  ")); Serial.print(LoadVoltage); Serial.println(" V");
-      Serial.print(F("Load Current:       ")); Serial.print(LoadCurrent); Serial.println(" mA");
-
-      Serial.println("");
+      read_ina3221();
     }
 
 #if defined(TXDEBUG)
     Serial.println(F("###############"));
-    Serial.print(F("USB PowerUp/Down Check - WeatherSenseProtocol:"));
+    Serial.print(F("Load PowerUp/Down Check - WeatherSenseProtocol: "));
     Serial.println(WeatherSenseProtocol);
-    Serial.print(F("DeviceID="));
+    Serial.print(F("DeviceID= "));
     Serial.println(SOLARMAXID);
-    Serial.print(F("Battery Voltage:  ")); Serial.print(BatteryVoltage); Serial.println(F(" V"));
-    Serial.print(F("Battery Current:       ")); Serial.print(BatteryCurrent); Serial.println(F(" mA"));
-    Serial.print(F("Solar Panel Voltage:   ")); Serial.print(SolarPanelVoltage); Serial.println(F(" V"));
-    Serial.print(F("Solar Current:  ")); Serial.print(SolarPanelCurrent); Serial.println(F(" mA"));
-    Serial.print(F("Load Voltage:  ")); Serial.print(LoadVoltage); Serial.println(F(" V"));
-    Serial.print(F("Load Current:       ")); Serial.print(LoadCurrent); Serial.println(" mA");
-    Serial.print(F(" Currentmillis() = "));
+    Serial.print(F("Battery Voltage:     ")); Serial.print(BatteryVoltage); Serial.println(F(" V"));
+    Serial.print(F("Battery Current:     ")); Serial.print(BatteryCurrent); Serial.println(F(" mA"));
+    Serial.print(F("Solar Panel Voltage: ")); Serial.print(SolarPanelVoltage); Serial.println(F(" V"));
+    Serial.print(F("Solar Current:       ")); Serial.print(SolarPanelCurrent); Serial.println(F(" mA"));
+    Serial.print(F("Load Voltage:        ")); Serial.print(LoadVoltage); Serial.println(F(" V"));
+    Serial.print(F("Load Current:        ")); Serial.print(LoadCurrent); Serial.println(" mA");
+    Serial.print(F("Currentmillis() =    "));
     Serial.println(millis());
     Serial.println();
 
-    Serial.print(F(" TenMinuteTimerStart = "));
+    Serial.print(F("TenMinuteTimerStart = "));
     Serial.println(TenMinuteTimerStart);
-    Serial.print(F(" TenMinuteTimerDuration (0 = Disabled) = "));
+    Serial.print(F("TenMinuteTimerDuration (0 = Disabled) = "));
     Serial.println(TenMinuteTimerDuration);
 
     if (TenMinuteTimerDuration == 0)
-      Serial.println(F(" TenMinute Timer = DISABLED"));
+      Serial.println(F("TenMinute Timer = DISABLED"));
     else if ((millis() - TenMinuteTimerStart) > TenMinuteTimerDuration)
-      Serial.println(F(" TenMinuteTimer = EXPIRED"));
+      Serial.println(F("TenMinuteTimer = EXPIRED"));
     else
-      Serial.println(F(" TenMinuteTimer = RUNNING"));
+      Serial.println(F("TenMinuteTimer = RUNNING"));
     Serial.println();
 
-    Serial.print(F(" FirstTimeTimerStart = "));
+    Serial.print(F("FirstTimeTimerStart = "));
     Serial.println(FirstTimeTimerStart);
-    Serial.print(F(" FirstTimeTimerDuration (0 = Disabled) = "));
+    Serial.print(F("FirstTimeTimerDuration (0 = Disabled) = "));
     Serial.println(FirstTimeTimerDuration);
 
     if (FirstTimeTimerDuration == 0)
-      Serial.println(F(" FirstTimeTimer = DISABLED"));
+      Serial.println(F("FirstTimeTimer = DISABLED"));
     else if ((millis() - FirstTimeTimerStart) > FirstTimeTimerDuration)
-      Serial.println(F(" FirstTimeTimer = EXPIRED"));
+      Serial.println(F("FirstTimeTimer = EXPIRED"));
     else
-      Serial.println(F(" FirstTimeTimer = RUNNING"));
+      Serial.println(F("FirstTimeTimer = RUNNING"));
     Serial.println();
 
     Serial.print(F("AuxA State:"));
@@ -722,78 +711,67 @@ void loop()
     Serial.print(AuxA);
     Serial.print(F(" "));
     Serial.println(AuxA, HEX);
-    Serial.print(F(" USBPower Status:"));
-    Serial.println(statusUSBPower);
+    Serial.print(F("LoadPower Status:"));
+    Serial.println(statusLoadPower);
     Serial.println(F("###############"));
 #endif
 
     // Check for power off
-    if (statusUSBPower == true)
+    if (statusLoadPower == true)
     {
+#if defined(TXDEBUG)
+      Serial.println(F("Checking for Low Battery or Low Voltage"));
+      Serial.print(F("Battery Voltage:  ")); Serial.print(BatteryVoltage); Serial.println(F(" V"));
+      Serial.print(F("Load Voltage:     ")); Serial.print(LoadVoltage); Serial.println(F(" V"));
+#endif
       if ((WeatherSenseProtocol == 10) )
       {
-        //
-#if defined(TXDEBUG)
-        Serial.println(F("Checking for Low Battery or Low Voltage"));
-        Serial.print(F("Battery Voltage:  ")); Serial.print(BatteryVoltage); Serial.println(F(" V"));
-        Serial.print(F("Load Voltage:  ")); Serial.print(LoadVoltage); Serial.println(F(" V"));
-#endif
-        if ((BatteryVoltage < 10.96) || ((LoadVoltage < 4.76) && (statusUSBPower == true)))  // 10.96 emperical
+        if ((BatteryVoltage < 10.96) || ((LoadVoltage < 4.76) && (statusLoadPower == true)))  // 10.96 emperical
         {
           Serial.println(F("Low LEAD ACID battery or Load Voltage Power Off on 5V"));
-          USBPowerOff();
+          LoadPowerOff();
         }
       }
       else if ((WeatherSenseProtocol == 8))
       {
-        //
-#if defined(TXDEBUG)
-        Serial.println(F("Checking for Low Battery or Low Voltage"));
-        Serial.print(F("Battery Voltage:  ")); Serial.print(BatteryVoltage); Serial.println(F(" V"));
-        Serial.print(F("Load Voltage:  ")); Serial.print(LoadVoltage); Serial.println(F(" V"));
-#endif
-        if ((BatteryVoltage < 2.9) || ((LoadVoltage < 4.76) && (statusUSBPower == true)))  // 2.9 emperical
+        if ((BatteryVoltage < 2.9) || ((LoadVoltage < 4.76) && (statusLoadPower == true)))  // 2.9 emperical
         {
           Serial.println(F("Low LIPO battery or Load Voltage Power Off on 5V"));
-          USBPowerOff();
+          LoadPowerOff();
         }
       }
-    } // statusUSBPower = true
-    else  // statusUSBPower = false
+    } // statusLoadPower = true
+    else // statusLoadPower = false
     {
       // check to turn power on
       if ((WeatherSenseProtocol == 10) )
       {
 #if defined(TXDEBUG)
-        Serial.println(F("Checking for USBPower On"));
+        Serial.println(F("Checking for LoadPower On"));
 #endif
         if ((BatteryVoltage > 11.8 ) && (SolarPanelCurrent > 100))
         {
-          USBPowerOn();
+          LoadPowerOn();
           delay(100);
           LoadVoltage = INA3221.getBusVoltage_V(LOAD_CHANNEL);
         }
         else
         {
-#if defined(TXDEBUG)
-          Serial.println(F("USB Power NOT turned on due to Battery Voltage < 11.8V or Solar Panel Current < 100ma"));
-#endif
+          Serial.println(F("Load Power NOT turned on due to Battery Voltage < 11.8 V or Solar Panel Current < 100 mA"));
         }
       }
       if (WeatherSenseProtocol == 8)
       {
         if (((BatteryVoltage > 3.0) && (SolarPanelCurrent > 100.0)) || (BatteryVoltage > 3.9))
         {
-          USBPowerOn();
+          LoadPowerOn();
           delay(100);
           // Now check the voltage again
           LoadVoltage = INA3221.getBusVoltage_V(LOAD_CHANNEL);
         }
         else
         {
-#if defined(TXDEBUG)
-          Serial.println(F("USB Power NOT turned  on due to (Battery Voltage < 3.0V or Solar Panel Current < 100ma) ||  BV <3.9)"));
-#endif
+          Serial.println(F("Load Power NOT turned  on due to (Battery Voltage < 3.0 V or Solar Panel Current < 100 mA) ||  BV < 3.9)"));
         }
       }
     }
@@ -812,11 +790,12 @@ void loop()
     int bufferLength;
 
     Serial.println(F("----------Sending packets----------"));
+  
     bufferLength = buildProtocolMessage();
 
     // Send a message
-
     driver.send(byteBuffer, bufferLength);
+  
     Serial.println(F("----------After Sending packet----------"));
 
     for (int i = 0; i < bufferLength; i++) {
@@ -854,23 +833,25 @@ void loop()
 
     MessageCount++;
 
-    Serial.println(F("----------Packet Sent.  Sleeping Now----------"));
+    Serial.println(F("----------Packet Sent. Sleeping Now----------"));
   }
 
-  if (wakeState != REBOOT)
+  if (wakeState != REBOOT) {
     wakeState = SLEEP_INTERRUPT;
-  long timeBefore;
-  long timeAfter;
+  }
+  unsigned long timeBefore;
+  unsigned long timeAfter;
   timeBefore = millis();
 #if defined(TXDEBUG)
-  Serial.print(F("timeBeforeSleep="));
+  Serial.print(F("timeBeforeSleep = "));
   Serial.println(timeBefore);
 #endif
   delay(100);
 
   //Sleepy::loseSomeTime(nextSleepLength);
-  for (long i = 0; i < nextSleepLength / 16; ++i)
+  for (long i = 0; i < nextSleepLength / 16; ++i) {
     Sleepy::loseSomeTime(16);
+  }
 
   wakeState = SLEEP_INTERRUPT;
 
@@ -879,7 +860,7 @@ void loop()
 #endif
   timeAfter = millis();
 #if defined(TXDEBUG)
-  Serial.print(F("timeAfterSleep="));
+  Serial.print(F("timeAfterSleep = "));
   Serial.println(timeAfter);
 
   Serial.print(F("SleepTime = "));
@@ -887,12 +868,12 @@ void loop()
 
   Serial.print(F("Millis Time: "));
 #endif
-  long time;
+  unsigned long time;
   time = millis();
 #if defined(TXDEBUG)
   //prints time since program started
   Serial.println(time / 1000.0);
-  Serial.print(F("2wakeState="));
+  Serial.print(F("wakeState = "));
   Serial.println(wakeState);
 #endif
 

@@ -25,19 +25,20 @@ THE SOFTWARE.
 
 #include "XClosedCube_HDC1080.h"
 
-
 XClosedCube_HDC1080::XClosedCube_HDC1080()
 {
 }
 
-void XClosedCube_HDC1080::begin(uint8_t address) {
+void XClosedCube_HDC1080::begin(uint8_t address)
+{
   _address = address;
   Wire.begin();
 
   setResolution(HDC1080_RESOLUTION_14BIT, HDC1080_RESOLUTION_14BIT);
 }
 
-void XClosedCube_HDC1080::setResolution(HDC1080_MeasurementResolution humidity, HDC1080_MeasurementResolution temperature) {
+void XClosedCube_HDC1080::setResolution(HDC1080_MeasurementResolution humidity, HDC1080_MeasurementResolution temperature)
+{
   HDC1080_Registers reg;
   reg.HumidityMeasurementResolution = 0;
   reg.TemperatureMeasurementResolution = 0;
@@ -60,7 +61,8 @@ void XClosedCube_HDC1080::setResolution(HDC1080_MeasurementResolution humidity, 
   writeRegister(reg);
 }
 
-HDC1080_SerialNumber XClosedCube_HDC1080::readSerialNumber() {
+HDC1080_SerialNumber XClosedCube_HDC1080::readSerialNumber()
+{
   HDC1080_SerialNumber sernum;
   sernum.serialFirst = readData(HDC1080_SERIAL_ID_FIRST);
   sernum.serialMid = readData(HDC1080_SERIAL_ID_MID);
@@ -68,13 +70,15 @@ HDC1080_SerialNumber XClosedCube_HDC1080::readSerialNumber() {
   return sernum;
 }
 
-HDC1080_Registers XClosedCube_HDC1080::readRegister() {
+HDC1080_Registers XClosedCube_HDC1080::readRegister()
+{
   HDC1080_Registers reg;
   reg.rawData = (readData(HDC1080_CONFIGURATION) >> 8);
   return reg;
 }
 
-void XClosedCube_HDC1080::writeRegister(HDC1080_Registers reg) {
+void XClosedCube_HDC1080::writeRegister(HDC1080_Registers reg)
+{
   Wire.beginTransmission(_address);
   Wire.write(HDC1080_CONFIGURATION);
   Wire.write(reg.rawData);
@@ -83,7 +87,8 @@ void XClosedCube_HDC1080::writeRegister(HDC1080_Registers reg) {
   delay(10);
 }
 
-void XClosedCube_HDC1080::heatUp(uint8_t seconds) {
+void XClosedCube_HDC1080::heatUp(uint8_t seconds)
+{
   HDC1080_Registers reg = readRegister();
   reg.Heater = 1;
   reg.ModeOfAcquisition = 1;
@@ -103,34 +108,40 @@ void XClosedCube_HDC1080::heatUp(uint8_t seconds) {
   writeRegister(reg);
 }
 
-
-double XClosedCube_HDC1080::readT() {
+double XClosedCube_HDC1080::readT()
+{
   return readTemperature();
 }
 
-double XClosedCube_HDC1080::readTemperature() {
+double XClosedCube_HDC1080::readTemperature()
+{
   uint16_t rawT = readData(HDC1080_TEMPERATURE);
   return (rawT / pow(2, 16)) * 165.0 - 40.0;
 }
 
-double XClosedCube_HDC1080::readH() {
+double XClosedCube_HDC1080::readH()
+{
   return readHumidity();
 }
 
-double XClosedCube_HDC1080::readHumidity() {
+double XClosedCube_HDC1080::readHumidity()
+{
   uint16_t rawH = readData(HDC1080_HUMIDITY);
   return (rawH / pow(2, 16)) * 100.0;
 }
 
-uint16_t XClosedCube_HDC1080::readManufacturerId() {
+uint16_t XClosedCube_HDC1080::readManufacturerId()
+{
   return readData(HDC1080_MANUFACTURER_ID);
 }
 
-uint16_t XClosedCube_HDC1080::readDeviceId() {
+uint16_t XClosedCube_HDC1080::readDeviceId()
+{
   return readData(HDC1080_DEVICE_ID);
 }
 
-uint16_t XClosedCube_HDC1080::readData(uint8_t pointer) {
+uint16_t XClosedCube_HDC1080::readData(uint8_t pointer)
+{
   Wire.beginTransmission(_address);
   Wire.write(pointer);
   Wire.endTransmission();
